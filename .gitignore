@@ -4,6 +4,12 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .DS_Store
+*.log
+
+# Private local engineering context. Never commit these artifacts.
+/engineering-notebook.html
+/engineering-notebook/
+/learning-lab/
 
 # Private local notes, planning, and architecture work. Never commit this folder.
 docs/
