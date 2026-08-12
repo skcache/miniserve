@@ -1,6 +1,9 @@
 """Assignment 7 scaffold: MiniServe's uncached manual greedy decoder."""
 import mlx.core as core
-from torch._dynamo.utils import _breakpoint_for_c_dynamo
+import argparse
+from minsrv.models.adapter import ModelAdapter
+
+
 
 # TODO: Select `[batch, vocabulary]` logits from the final sequence position.
 def select_last_position_logits(logits):
@@ -104,8 +107,50 @@ def generate_text(adapter, prompt, max_new_tokens):
 # TODO: Parse CLI arguments and run one deterministic prompt through MiniServe.
 def main():
     """Parse CLI arguments and run one deterministic prompt through MiniServe."""
-    
-    
+    parser = argparse.ArgumentParser(
+        description="MiniServe manual greedy decoder"
+    )
 
+    parser.add_argument(
+        "--prompt",
+        type=str,
+        default="What is the capital of France?",
+    )
+
+    parser.add_argument(
+        "--max-new-tokens",
+        type=int,
+        default=16,
+    )
+
+    args = parser.parse_args()
+
+    adapter = ModelAdapter.load(
+        model_id="mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+        model_revision="a5339a4",
+    )
+
+    result = generate_text(
+        adapter,
+        args.prompt,
+        args.max_new_tokens,
+    )
+
+    print("Prompt:")
+    print(args.prompt)
+
+    print("\nGenerated:")
+    print(result["text"])
+
+    print("\nToken trace:")
+    for step in result["trace"]:
+        print(
+            f"step={step['step']} "
+            f"token={step['next_token_id']} "
+            f"length={step['sequence_length']} "
+            f"eos={step['is_eos']}"
+        )
+
+    
 if __name__ == "__main__":
     main()
