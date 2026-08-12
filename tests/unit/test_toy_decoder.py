@@ -2,7 +2,7 @@
 
 import torch
 
-from miniserve.engine.toy_decoder import generate_toy, select_greedy_token
+from minsrv.engine.toy_decoder import generate_toy, select_greedy_token
 
 
 def test_greedy_selection_picks_the_biggest_number():

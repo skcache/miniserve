@@ -2,7 +2,7 @@
 
 import torch
 
-from miniserve.engine.attention import causal_self_attention
+from minsrv.engine.attention import causal_self_attention
 
 
 def test_attention_keeps_the_same_shape():

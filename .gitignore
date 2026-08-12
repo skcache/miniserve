@@ -30,3 +30,6 @@ results/*.jsonl
 # Local model/cache directories.
 .cache/
 /models/
+
+# Native build products.
+/cpp/build*/
