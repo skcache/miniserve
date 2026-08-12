@@ -51,6 +51,7 @@ def test_generation_calls_forward_once_per_generated_token():
 
     assert len(adapter.forward_shapes) == 2
     assert [step["next_token_id"] for step in steps] == [3, 4]
+    assert [step["sequence_length"] for step in steps] == [(1, 3), (1, 4)]
 
 
 def test_each_uncached_forward_receives_the_full_growing_sequence():

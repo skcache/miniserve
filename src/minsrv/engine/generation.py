@@ -58,7 +58,7 @@ def uncached_generate_steps(adapter, prompt_token_ids, max_new_tokens):
         yield {
             "step": i + 1,
             "next_token_id": next,
-            "sequence_length": growingSeq.shape(),
+            "sequence_length": growingSeq.shape,
             "token_ids": growingSeq,
             "is_eos": is_eos,
         }
@@ -76,7 +76,7 @@ def generate_text(adapter, prompt, max_new_tokens):
     messages = [
         {
             "role": "user",
-            "context": prompt,
+            "content": prompt,
         }
     ]
     
