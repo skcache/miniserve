@@ -1,25 +1,53 @@
-"""Assignment 9 integration-test prompts for deterministic parity."""
+"""Small contract tests for the Python golden-token oracle tooling."""
+
+import json
+
+import pytest
+
+from tools.reference_tokens import build_reference_prompt, write_golden_fixture
+
+pytestmark = pytest.mark.xfail(
+    strict=True,
+    reason="Golden-token oracle implementation remains open in issue #5",
+)
 
 
-# TODO: Validate fixture schema before using expected token IDs.
-def load_golden_fixture(path):
-    """Validate fixture schema before using expected token IDs."""
-    pass
+class _Tokenizer:
+    def encode(self, prompt, add_special_tokens=False):
+        assert add_special_tokens is False
+        return [7, len(prompt)]
+
+    def apply_chat_template(self, messages, **kwargs):
+        assert messages == [{"role": "user", "content": "hello"}]
+        assert kwargs == {
+            "add_generation_prompt": True,
+            "tokenize": True,
+        }
+        return [1, 7, 5, 2]
 
 
-# TODO: Compare token IDs exactly under identical model and prompt formatting.
-def test_miniserve_matches_first_greedy_reference_tokens():
-    """Compare token IDs exactly under identical model and prompt formatting."""
-    pass
+def test_plain_reference_prompt_uses_tokenizer_encode():
+    token_ids = build_reference_prompt(_Tokenizer(), "hello", use_chat_template=False)
+
+    assert token_ids == [7, 5]
 
 
-# TODO: Fail clearly when framework/model churn invalidates the oracle.
-def test_fixture_model_revision_matches_loaded_adapter():
-    """Fail clearly when framework/model churn invalidates the oracle."""
-    pass
+def test_chat_reference_prompt_uses_one_declared_template():
+    token_ids = build_reference_prompt(_Tokenizer(), "hello", use_chat_template=True)
+
+    assert token_ids == [1, 7, 5, 2]
 
 
-# TODO: Separate tokenizer/template drift from model-forward errors.
-def test_fixture_prompt_tokens_match_current_tokenizer():
-    """Separate tokenizer/template drift from model-forward errors."""
-    pass
+def test_golden_fixture_preserves_reproducibility_metadata(tmp_path):
+    path = tmp_path / "golden.json"
+    record = {
+        "model_id": "model",
+        "model_revision": "revision",
+        "prompt_token_ids": [1, 2],
+        "output_token_ids": [3, 4],
+        "runtime_versions": {"mlx": "test"},
+    }
+
+    write_golden_fixture(path, record)
+
+    assert json.loads(path.read_text()) == record

@@ -2,7 +2,7 @@
 
 import torch
 
-from miniserve.engine.transformer_block import (
+from minsrv.engine.transformer_block import (
     feed_forward_reference,
     layer_norm_reference,
 )

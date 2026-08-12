@@ -48,7 +48,6 @@ def uncached_generate_steps(adapter, prompt_token_ids, max_new_tokens):
         core.eval(next_token_ids) #force the selected token 
         
         next = next_token_ids[0].item()
-        
         growingSeq = append_token(growingSeq, next_token_ids)
         
         core.eval(growingSeq) #prevent lazy graph accumulation
@@ -59,10 +58,12 @@ def uncached_generate_steps(adapter, prompt_token_ids, max_new_tokens):
         yield {
             "step": i + 1,
             "next_token_id": next,
-            "sequence_length": growingSeq.shape(),
+            "sequence_length": growingSeq.shape,
             "token_ids": growingSeq,
             "is_eos": is_eos,
         }
+        
+        #instead of return we just yield so function doesnt get destroyed and local variables are stored
         
         if is_eos:
             break
@@ -72,7 +73,32 @@ def uncached_generate_steps(adapter, prompt_token_ids, max_new_tokens):
 # TODO: Own encode-loop-stop-decode control flow and return text plus token trace.
 def generate_text(adapter, prompt, max_new_tokens):
     """Own encode-loop-stop-decode control flow and return text plus token trace."""
-    pass
+    messages = [
+        {
+            "role": "user",
+            "content": prompt,
+        }
+    ]
+    
+    prompt_token_ids = adapter.encode_chat_prompt(messages)
+    prompt_length = prompt_token_ids.shape[1]
+    
+    trace = []
+    final_token_ids = prompt_token_ids
+    
+    for step in uncached_generate_steps(adapter, prompt_token_ids, max_new_tokens):
+        trace.append(step)
+        final_token_ids = step["token_ids"]
+    
+    generated_token_ids = final_token_ids[:, prompt_length:] #here we remove the original prompt to seperate the input and output
+    generated_text = adapter.decode_tokens(generated_token_ids)
+    
+    return {
+        "text": generated_text,
+        "generated_token_ids": generated_token_ids,
+        "trace": trace,
+    }
+        
 
 
 # TODO: Parse CLI arguments and run one deterministic prompt through MiniServe.

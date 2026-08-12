@@ -1,94 +1,103 @@
 # MiniServe
 
-MiniServe is a small, from-scratch language-model inference runtime for Apple
-Silicon. It is intentionally focused on the systems path between a tokenized
-request and a streamed response: model execution, KV-cache ownership, request
-scheduling, batching, memory allocation, measurement, and one custom Metal
-attention backend.
+MiniServe is a focused C++20 language-model inference runtime project for Apple Silicon. The native runtime will use the MLX C++ API and finish with one custom Metal optimization selected from profiling evidence.
 
-The target workload is a pinned 4-bit Qwen2.5 0.5B model on an M2 Pro MacBook
-Pro with bounded context and concurrency. `mlx-lm` may load architecture
-definitions and weights, but MiniServe owns generation, request state, cache
-state, scheduling, measurements, and optimized execution.
+The existing Python implementation is retained as the correctness oracle. It defines the expected prompt tokens, greedy output tokens, tensor shapes, and small reference behavior used to verify the native path.
 
-## Current push
+## Current state
 
-The project is organized as a six-week engineering push:
+The repository contains:
 
-1. Run deterministic real-model generation and integrate a correct KV cache.
-2. Serve concurrent streaming requests with static and continuous batching.
-3. Own memory through a logical block allocator and compare 4-bit/8-bit paths.
-4. Build a concurrent-load benchmark and a bounded toy MoE experiment.
-5. Integrate a custom Metal decode-attention backend into the serving path.
-6. Publish reproducible measurements, architecture, limitations, and a demo.
+- learner-authored Python reference components;
+- small Python correctness tests and oracle tooling;
+- a compile-only C++20 project scaffold;
+- interface contracts linked to the [C++ V1 issue backlog](https://github.com/skcache/miniserve/issues);
+- no implemented native inference, KV-cache, batching, scheduler, or Metal algorithm yet.
 
-GitHub issues are the public engineering plan. Private prerequisites, learning
-notes, and architecture work remain under `docs/`, which is deliberately
-ignored by Git.
+Every unimplemented native subsystem is identified by its real GitHub issue number. Empty source files and compile-time contract tests establish boundaries without solving the implementation.
 
-## Active foundation work
+## 30-day C++ V1
 
-Four existing learning exercises remain active because they directly unblock
-the runtime:
+The required path is:
 
-- Assignment 5: understand MLX lazy execution and honest timing.
-- Assignment 6: load the pinned model behind a narrow adapter.
-- Assignment 7: own deterministic uncached greedy generation.
-- Assignment 9: prove exact golden-token parity against an isolated oracle.
+1. bootstrap MLX C++ and prove Python/C++ token parity;
+2. implement explicit greedy generation with separate prefill and decode;
+3. compare naive concatenating and preallocated contiguous KV caches;
+4. add request lifecycles, static batching, and fixed-slot continuous batching;
+5. measure deterministic synthetic workloads;
+6. profile the runtime, choose one operation, and compare readable, MLX C++, and Metal implementations;
+7. publish reproducible evidence, including negative optimization results.
 
-The earlier attention, transformer-block, tokenizer, and toy-decoder work stays
-as completed foundation code. Later assignment scaffolds were removed; their
-requirements now live in product-oriented GitHub issues.
+The first native issue is [#21 — Bootstrap the C++20 and MLX C++ runtime](https://github.com/skcache/miniserve/issues/21). The Python reference gate in [#5](https://github.com/skcache/miniserve/issues/5) remains ahead of it on the critical path.
 
-## Setup
+## Scope boundaries
 
-The environment is managed with `uv` and targets native ARM Python 3.12.
+Required for V1:
+
+- Python correctness oracle;
+- C++20 and MLX C++;
+- manual greedy autoregressive decode;
+- explicit prefill/decode phases;
+- naive and preallocated contiguous KV caches;
+- request lifecycle and scheduler;
+- static and fixed-slot continuous batching;
+- CLI synthetic load and repeatable benchmarks;
+- one profile-selected Metal kernel;
+- technical report.
+
+Not part of V1:
+
+- quantization work;
+- Mixture of Experts;
+- prefix caching or paged KV allocation;
+- speculative decoding;
+- HTTP/OpenAI-compatible serving;
+- Triton, CUDA, distributed, multi-GPU, or multi-node inference.
+
+## Python reference environment
+
+Python uses `uv` with native ARM Python 3.12:
 
 ```bash
 uv sync
-uv run python tools/hardware_report.py
 uv run pytest
+uv run python tools/hardware_report.py
 ```
 
-The hardware command writes a machine-readable report to `results/hardware.json` and prints the same report as JSON. It does not download model weights.
+The hardware command writes machine-specific output under ignored `results/`.
+
+## C++ scaffold
+
+The compile-only scaffold has no external test framework and builds without MLX by default:
+
+```bash
+cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Debug
+cmake --build cpp/build
+ctest --test-dir cpp/build --output-on-failure
+./cpp/build/miniserve_cpp
+```
+
+To exercise the MLX C++ configuration boundary, point CMake at a locally built MLX prefix:
+
+```bash
+cmake -S cpp -B cpp/build-mlx \
+  -DMINISERVE_ENABLE_MLX=ON \
+  -DMLX_CPP_ROOT=/path/to/mlx/prefix
+```
+
+That option verifies header/library discovery only. It does not imply that native model inference is implemented.
 
 ## Repository layout
 
 ```text
-src/miniserve/engine/       Generation, decode, batching, and scheduling
-src/miniserve/models/       Model-specific adapter boundary
-src/miniserve/cache/        Contiguous and logical block-managed KV storage
-src/miniserve/serving/      Request lifecycle and model-owning executor
-src/miniserve/api/          Local streaming HTTP boundary
-src/miniserve/quantization/ Reference and MLX-native quantization paths
-src/miniserve/kernels/      Custom Metal attention backend
-tests/                      Focused unit and end-to-end correctness tests
-benchmarks/                 Reproducible latency and throughput entry points
-tools/                      Development, oracle, and hardware utilities
-docs/                       Local-only learning and architecture notes
-results/                    Ignored raw measurements
+src/minsrv/                 Python reference implementation
+tests/                      Python correctness and parity tests
+tools/                      Oracle and hardware utilities
+cpp/include/miniserve/      Native subsystem contracts
+cpp/src/                    Learner-owned implementation surfaces
+cpp/tests/                  Compile-time interface test scaffolds
+cpp/kernels/                Profile-gated Metal boundary
+results/                    Ignored local measurements
 ```
 
-Directories are added when their owning issue begins; the repository does not
-carry empty implementation scaffolds for future work.
-
-## Runtime boundaries
-
-- One process loads one model and owns accelerator execution.
-- Waiting requests do not own KV-cache capacity.
-- Every admitted request has explicit lifecycle and cache ownership.
-- Benchmarks force MLX evaluation and preserve raw samples.
-- The logical block allocator manages MLX arrays, not macOS physical pages.
-- The MLX and Metal attention backends obey one numerical contract.
-- `mlx_lm.generate()` and `mlx_lm.server()` are oracles, never runtime paths.
-
-## Initial safety limits
-
-- Model: `mlx-community/Qwen2.5-0.5B-Instruct-4bit`
-- Context: 1,024 tokens
-- Generation: 128 tokens
-- Active requests: 4
-- Waiting requests: 16
-
-These are conservative defaults for the target 16 GB machine. Any increase
-must be justified by measured memory pressure and cache accounting.
+Private notes, architecture reasoning, and learning materials remain ignored and are not part of the public repository.

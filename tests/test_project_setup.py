@@ -1,4 +1,4 @@
-from miniserve import __version__
+from minsrv import __version__
 
 
 def test_package_version_is_available() -> None:
