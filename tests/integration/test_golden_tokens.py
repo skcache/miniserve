@@ -1,15 +1,9 @@
-"""Small contract tests for the Python golden-token oracle tooling."""
+"""Simple tests for the golden-token oracle helpers."""
 
 import json
+from types import SimpleNamespace
 
-import pytest
-
-from tools.reference_tokens import build_reference_prompt, write_golden_fixture
-
-pytestmark = pytest.mark.xfail(
-    strict=True,
-    reason="Golden-token oracle implementation remains open in issue #5",
-)
+from tools import reference_tokens
 
 
 class _Tokenizer:
@@ -27,19 +21,42 @@ class _Tokenizer:
 
 
 def test_plain_reference_prompt_uses_tokenizer_encode():
-    token_ids = build_reference_prompt(_Tokenizer(), "hello", use_chat_template=False)
+    token_ids = reference_tokens.build_reference_prompt(
+        _Tokenizer(),
+        "hello",
+        use_chat_template=False,
+    )
 
     assert token_ids == [7, 5]
 
 
 def test_chat_reference_prompt_uses_one_declared_template():
-    token_ids = build_reference_prompt(_Tokenizer(), "hello", use_chat_template=True)
+    token_ids = reference_tokens.build_reference_prompt(
+        _Tokenizer(),
+        "hello",
+        use_chat_template=True,
+    )
 
     assert token_ids == [1, 7, 5, 2]
 
 
+def test_collect_reference_tokens_keeps_streamed_token_ids(monkeypatch):
+    responses = [SimpleNamespace(token=3), SimpleNamespace(token=4)]
+
+    monkeypatch.setattr(reference_tokens, "stream_generate", lambda *args, **kwargs: responses)
+
+    token_ids = reference_tokens.collect_reference_greedy_tokens(
+        model=object(),
+        tokenizer=object(),
+        prompt_token_ids=[1, 2],
+        count=2,
+    )
+
+    assert token_ids == [3, 4]
+
+
 def test_golden_fixture_preserves_reproducibility_metadata(tmp_path):
-    path = tmp_path / "golden.json"
+    path = tmp_path / "fixtures" / "golden.json"
     record = {
         "model_id": "model",
         "model_revision": "revision",
@@ -48,6 +65,6 @@ def test_golden_fixture_preserves_reproducibility_metadata(tmp_path):
         "runtime_versions": {"mlx": "test"},
     }
 
-    write_golden_fixture(path, record)
+    reference_tokens.write_golden_fixture(path, record)
 
     assert json.loads(path.read_text()) == record
