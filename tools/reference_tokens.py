@@ -64,17 +64,8 @@ def main():
     )
 
     use_chat_template = not args.plain
-    prompt_token_ids = build_reference_prompt(
-        tokenizer,
-        args.prompt,
-        use_chat_template,
-    )
-    output_token_ids = collect_reference_greedy_tokens(
-        model,
-        tokenizer,
-        prompt_token_ids,
-        args.count,
-    )
+    prompt_token_ids = build_reference_prompt(tokenizer, args.prompt, use_chat_template)
+    output_token_ids = collect_reference_greedy_tokens(model, tokenizer, prompt_token_ids, args.count)
 
     record = {
         "model_id": DEFAULT_MODEL_ID,
