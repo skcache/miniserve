@@ -1,62 +1,175 @@
 # MiniServe
 
-MiniServe is a focused C++20 language-model inference runtime project for Apple Silicon. The native runtime will use the MLX C++ API and finish with one custom Metal optimization selected from profiling evidence.
+I started MiniServe because I have a genuine interest in language-model inference and want to understand every layer involved in turning model weights into generated tokens.
 
-The existing Python implementation is retained as the correctness oracle. It defines the expected prompt tokens, greedy output tokens, tensor shapes, and small reference behavior used to verify the native path.
+Right now, much of that path is hidden from me. A model-loading library reads the weights. A framework constructs the computation. A generation helper owns the decoding loop. The device runtime schedules the work. A serving framework handles requests and batching.
 
-## Current state
+I want to open that path up and understand it from end to end.
 
-The repository contains:
+MiniServe begins as a small inference engine for Apple Silicon. The first version uses Python and MLX to establish correct behavior, followed by a C++20 runtime where I will implement generation, KV caching, batching, scheduling, benchmarking, and a profile-selected Metal kernel.
 
-- learner-authored Python reference components;
-- small Python correctness tests and oracle tooling;
-- a compile-only C++20 project scaffold;
-- interface contracts linked to the [C++ V1 issue backlog](https://github.com/skcache/miniserve/issues);
-- no implemented native inference, KV-cache, batching, scheduler, or Metal algorithm yet.
+The long-term goal is to own the complete inference path from model file to streamed token.
 
-Every unimplemented native subsystem is identified by its real GitHub issue number. Empty source files and compile-time contract tests establish boundaries without solving the implementation.
+```text
+model file
+    ↓
+tokenizer
+    ↓
+tensor runtime
+    ↓
+transformer
+    ↓
+prefill and decode
+    ↓
+KV memory manager
+    ↓
+request scheduler
+    ↓
+server
+    ↓
+streamed tokens
+```
 
-## 30-day C++ V1
+## Where MiniServe is right now
 
-The required path is:
+The Python side currently contains:
 
-1. bootstrap MLX C++ and prove Python/C++ token parity;
-2. implement explicit greedy generation with separate prefill and decode;
-3. compare naive concatenating and preallocated contiguous KV caches;
-4. add request lifecycles, static batching, and fixed-slot continuous batching;
-5. measure deterministic synthetic workloads;
-6. profile the runtime, choose one operation, and compare readable, MLX C++, and Metal implementations;
-7. publish reproducible evidence, including negative optimization results.
+- reference attention and transformer operations
+- a model and tokenizer adapter
+- manual greedy generation
+- deterministic token-oracle tooling
+- small tests for shapes, token selection, causal behavior, and stopping
 
-The first native issue is [#21 — Bootstrap the C++20 and MLX C++ runtime](https://github.com/skcache/miniserve/issues/21). The Python reference gate in [#5](https://github.com/skcache/miniserve/issues/5) remains ahead of it on the critical path.
+The native side currently contains:
 
-## Scope boundaries
+- a C++20 build
+- interfaces for model execution
+- prefill and decode boundaries
+- KV-cache interfaces
+- request and scheduler types
+- benchmark contracts
+- a reserved boundary for Metal kernels
 
-Required for V1:
+The C++ inference path is still under construction. A source file existing does not mean the subsystem works.
 
-- Python correctness oracle;
-- C++20 and MLX C++;
-- manual greedy autoregressive decode;
-- explicit prefill/decode phases;
-- naive and preallocated contiguous KV caches;
-- request lifecycle and scheduler;
-- static and fixed-slot continuous batching;
-- CLI synthetic load and repeatable benchmarks;
-- one profile-selected Metal kernel;
-- technical report.
+## The first complete runtime
 
-Not part of V1:
+The first major target is a small model generating text through code I can explain from beginning to end.
 
-- quantization work;
-- Mixture of Experts;
-- prefix caching or paged KV allocation;
-- speculative decoding;
-- HTTP/OpenAI-compatible serving;
-- Triton, CUDA, distributed, multi-GPU, or multi-node inference.
+That means implementing:
 
-## Python reference environment
+1. model and tokenizer loading
+2. a forward pass through MLX C++
+3. manual greedy token selection
+4. separate prefill and decode paths
+5. a contiguous KV cache
+6. request state and cancellation
+7. static batching
+8. iteration-level batching
+9. reproducible latency measurements
+10. one custom Metal kernel selected from profiling
 
-Python uses `uv` with native ARM Python 3.12:
+The model is small enough to run safely on my M2 Pro. The difficult part of this project is the runtime, memory, and scheduling behavior, not fitting the largest possible model into memory.
+
+The implementation work is tracked in the [GitHub issue backlog](https://github.com/skcache/miniserve/issues).
+
+## Correctness
+
+Every optimization begins with a slower implementation that is easier to inspect.
+
+The Python runtime records a pinned model revision, prompt token IDs, generated token IDs, and runtime versions. The C++ runtime must reproduce the same greedy token sequence.
+
+Small tests cover individual properties:
+
+```text
+causal attention cannot read future tokens
+final-position logits select the next token
+one decode iteration appends one token
+the EOS token appears once and stops generation
+prefill and decode preserve the expected tensor shapes
+cached and uncached generation produce the same tokens
+```
+
+These tests are small. I want failures to tell me which inference rule I misunderstood.
+
+## Experiments
+
+MiniServe is organized around comparisons.
+
+### Full-sequence generation and cached generation
+
+The uncached decoder repeatedly processes the growing sequence:
+
+```text
+[prompt]
+[prompt, token 1]
+[prompt, token 1, token 2]
+[prompt, token 1, token 2, token 3]
+```
+
+The cached decoder processes the prompt once and stores attention keys and values for later decode steps.
+
+I will compare token parity, time to first token, time per output token, total latency, and memory use.
+
+### Growing and preallocated KV caches
+
+The first cache grows by concatenating tensors. The second reserves capacity and writes into known positions.
+
+This experiment is meant to expose allocation, copying, capacity, tensor layout, and ownership before moving to block-based memory.
+
+### Static and iteration-level batching
+
+Static batching keeps a group of requests together until generation finishes.
+
+Iteration-level batching rebuilds the active batch between decoding steps. Finished requests can leave and waiting requests can enter.
+
+This part of MiniServe will measure throughput, queueing delay, batch utilization, P50 latency, and P99 latency.
+
+### Metal
+
+I will profile the runtime before choosing a Metal kernel.
+
+The selected operation will have three implementations:
+
+```text
+readable reference
+MLX C++
+Metal
+```
+
+All three must produce matching results. The report will include raw timings and unsuccessful attempts, including cases where MLX is already faster.
+
+## Measurements
+
+Each benchmark records:
+
+- hardware and operating-system version
+- model name and exact revision
+- weight precision
+- prompt and output lengths
+- request arrival pattern
+- cache configuration
+- scheduler policy
+- warmup procedure
+- synchronization points
+- raw samples
+- summary statistics
+
+The main metrics are:
+
+| Metric | What it captures |
+|---|---|
+| TTFT | Time from admission to the first token |
+| TPOT | Time per output token after prefill |
+| End-to-end latency | Total request lifetime |
+| Throughput | Output tokens produced per second |
+| P50 and P99 | Typical and tail latency |
+| KV memory | Cache memory used as context grows |
+| Batch utilization | Active scheduler slots over time |
+
+## Building the Python reference
+
+MiniServe uses native ARM Python 3.12 and `uv`.
 
 ```bash
 uv sync
@@ -64,11 +177,17 @@ uv run pytest
 uv run python tools/hardware_report.py
 ```
 
-The hardware command writes machine-specific output under ignored `results/`.
+Capture reference tokens:
 
-## C++ scaffold
+```bash
+uv run python tools/reference_tokens.py \
+  --prompt "What is the capital of France?" \
+  --count 8
+```
 
-The compile-only scaffold has no external test framework and builds without MLX by default:
+Machine-specific reports and generated token fixtures are written beneath ignored `results/`.
+
+## Building the native scaffold
 
 ```bash
 cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Debug
@@ -77,7 +196,7 @@ ctest --test-dir cpp/build --output-on-failure
 ./cpp/build/miniserve_cpp
 ```
 
-To exercise the MLX C++ configuration boundary, point CMake at a locally built MLX prefix:
+To test the MLX C++ discovery boundary:
 
 ```bash
 cmake -S cpp -B cpp/build-mlx \
@@ -85,19 +204,29 @@ cmake -S cpp -B cpp/build-mlx \
   -DMLX_CPP_ROOT=/path/to/mlx/prefix
 ```
 
-That option verifies header/library discovery only. It does not imply that native model inference is implemented.
+Successful configuration proves that the headers and libraries were discovered. Native model inference is not complete yet.
 
-## Repository layout
+## Repository map
 
 ```text
 src/minsrv/                 Python reference implementation
-tests/                      Python correctness and parity tests
-tools/                      Oracle and hardware utilities
-cpp/include/miniserve/      Native subsystem contracts
-cpp/src/                    Learner-owned implementation surfaces
-cpp/tests/                  Compile-time interface test scaffolds
-cpp/kernels/                Profile-gated Metal boundary
+tests/                      Small Python correctness tests
+tools/                      Oracle, hardware, and execution experiments
+
+cpp/include/miniserve/      Native runtime interfaces
+cpp/src/                    C++ implementation
+cpp/tests/                  Native correctness tests
+cpp/kernels/                Metal kernels
+
 results/                    Ignored local measurements
 ```
 
-Private notes, architecture reasoning, and learning materials remain ignored and are not part of the public repository.
+Private study notes, architecture reasoning, and local measurements stay out of the public repository.
+
+## Longer-term direction
+
+The C++ runtime is the beginning of MiniServe.
+
+Over time, I want to replace more of the borrowed stack with code built inside this repository: model-file parsing, tokenization, tensor storage, Metal execution, quantization, paged KV allocation, prefix reuse, scheduling, serving, and tools for inspecting a live inference request.
+
+The final project should make it possible to follow one token from input text, through every transformer layer and cache allocation, until it is streamed back to the client.
