@@ -167,25 +167,26 @@ The main metrics are:
 | KV memory | Cache memory used as context grows |
 | Batch utilization | Active scheduler slots over time |
 
-### Phase 0 reference measurement
+### Phase 0 reference measurements
 
 The first measured baseline uses the pinned Qwen2.5 0.5B 4-bit model through `mlx-lm` on an M2 Pro with 16 GB of unified memory. The formatted chat prompt contains 36 tokens. Generation requests at most 16 output tokens and stops naturally on EOS after 8. Each result below uses one warmup followed by three measured runs.
 
-Battery run captured at commit `8f9528d` on macOS 26.5.2:
+The battery run was captured at commit `8f9528d`. The plugged-in run used the same benchmark code and workload at commit `f68055e`. Both ran on macOS 26.5.2 with Python 3.12.0, MLX 0.32.0, and mlx-lm 0.31.3.
 
-| Metric | Battery |
-|---|---:|
-| TTFT P50 | 104.97 ms |
-| TTFT P99 | 107.20 ms |
-| TPOT P50 | 3.28 ms |
-| TPOT P99 | 3.79 ms |
-| Total latency P50 | 128.40 ms |
-| Median decode throughput | 300.92 tokens/s |
-| Reported peak MLX memory | 0.338 GB |
+| Metric | Battery | Plugged in | Change |
+|---|---:|---:|---:|
+| Model load | 478.89 ms | 650.76 ms | +35.89% |
+| TTFT P50 | 104.97 ms | 100.20 ms | -4.54% |
+| TTFT P99 | 107.20 ms | 103.24 ms | -3.69% |
+| TPOT P50 | 3.28 ms | 3.21 ms | -2.06% |
+| TPOT P99 | 3.79 ms | 4.36 ms | +14.91% |
+| Total latency P50 | 128.40 ms | 123.98 ms | -3.45% |
+| Median decode throughput | 300.92 tokens/s | 302.14 tokens/s | +0.41% |
+| Reported peak MLX memory | 0.338 GB | 0.338 GB | 0.00% |
 
-All three measured runs produced the same eight token IDs and ended on EOS. The benchmark records raw per-token timings under ignored `results/`.
+All six measured runs produced the same eight token IDs and ended on EOS. Lower is better for latency rows. Higher is better for throughput. The benchmark records raw per-token timings under ignored `results/`.
 
-This is a local smoke baseline. Three runs are not enough for a performance distribution, battery power can affect frequency and thermal behavior, and the measurement includes the high-level Python and `mlx-lm` path. It does not measure the future MiniServe C++ runtime.
+The plugged-in run had modestly lower median latency, while decode throughput was effectively unchanged and TPOT P99 was worse. Three runs per condition cannot isolate power state from thermal state, memory pressure, or background activity, so this is a local smoke comparison rather than evidence that AC power caused a speedup. The measurement includes the high-level Python and `mlx-lm` path. It does not measure the future MiniServe C++ runtime.
 
 ## Building the Python reference
 
