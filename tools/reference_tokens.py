@@ -24,6 +24,16 @@ REFERENCE_CASES = [
         "max_output_tokens": 8,
     },
     {
+        "name": "chat_medium",
+        "prompt": (
+            "Summarize this in one sentence: During autoregressive inference, prefill "
+            "processes the prompt in parallel. Decode then produces one token at a time "
+            "while reusing keys and values from earlier positions."
+        ),
+        "use_chat_template": True,
+        "max_output_tokens": 8,
+    },
+    {
         "name": "chat_eos",
         "prompt": "Reply with only the word OK.",
         "use_chat_template": True,
