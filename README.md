@@ -188,6 +188,8 @@ All six measured runs produced the same eight token IDs and ended on EOS. Lower 
 
 The plugged-in run had modestly lower median latency, while decode throughput was effectively unchanged and TPOT P99 was worse. Three runs per condition cannot isolate power state from thermal state, memory pressure, or background activity, so this is a local smoke comparison rather than evidence that AC power caused a speedup. The measurement includes the high-level Python and `mlx-lm` path. It does not measure the future MiniServe C++ runtime.
 
+The plugged-in measurement was collected while the laptop was also running normal desktop applications, including a browser and the development environment. That makes the 35.89% increase in model-load time especially vulnerable to host CPU, memory, and filesystem contention. These numbers are retained as preliminary evidence, but both power conditions need to be rerun in a quiet session with only the benchmark and its development terminal open before making a power-state comparison.
+
 ## Building the Python reference
 
 MiniServe uses native ARM Python 3.12 and `uv`.
