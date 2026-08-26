@@ -1,10 +1,16 @@
-.PHONY: setup hardware test lint cpp-configure cpp-build cpp-test
+.PHONY: setup hardware oracle benchmark test lint cpp-configure cpp-build cpp-test phase0
 
 setup:
 	uv sync
 
 hardware:
 	uv run python tools/hardware_report.py
+
+oracle:
+	uv run python tools/reference_tokens.py --suite --output results/golden_tokens.json
+
+benchmark: hardware
+	uv run python -m tools.reference_benchmark
 
 test:
 	uv run pytest
@@ -20,3 +26,5 @@ cpp-build: cpp-configure
 
 cpp-test: cpp-build
 	ctest --test-dir cpp/build --output-on-failure
+
+phase0: test cpp-test oracle benchmark

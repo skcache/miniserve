@@ -180,12 +180,24 @@ uv run python tools/hardware_report.py
 Capture reference tokens:
 
 ```bash
-uv run python tools/reference_tokens.py \
-  --prompt "What is the capital of France?" \
-  --count 8
+make oracle
 ```
 
-Machine-specific reports and generated token fixtures are written beneath ignored `results/`.
+Run the small reference benchmark:
+
+```bash
+make benchmark
+```
+
+Run the complete Phase 0 evidence path:
+
+```bash
+make phase0
+```
+
+The reviewed Python/C++ parity contract lives at `tests/fixtures/golden_tokens.json`. It freezes plain, chat, and EOS-focused cases against the full model revision. Machine-specific reports and regenerated evidence are written beneath ignored `results/`.
+
+The benchmark preserves raw per-token timings and reports TTFT, TPOT, total latency, decode throughput, and peak MLX memory. Each record includes the model revision, current Git commit, hardware report, power state, runtime versions, and timing method. These measurements establish a local baseline. They are not cross-hardware performance claims.
 
 ## Building the native scaffold
 
