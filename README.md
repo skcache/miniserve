@@ -167,6 +167,26 @@ The main metrics are:
 | KV memory | Cache memory used as context grows |
 | Batch utilization | Active scheduler slots over time |
 
+### Phase 0 reference measurement
+
+The first measured baseline uses the pinned Qwen2.5 0.5B 4-bit model through `mlx-lm` on an M2 Pro with 16 GB of unified memory. The formatted chat prompt contains 36 tokens. Generation requests at most 16 output tokens and stops naturally on EOS after 8. Each result below uses one warmup followed by three measured runs.
+
+Battery run captured at commit `8f9528d` on macOS 26.5.2:
+
+| Metric | Battery |
+|---|---:|
+| TTFT P50 | 104.97 ms |
+| TTFT P99 | 107.20 ms |
+| TPOT P50 | 3.28 ms |
+| TPOT P99 | 3.79 ms |
+| Total latency P50 | 128.40 ms |
+| Median decode throughput | 300.92 tokens/s |
+| Reported peak MLX memory | 0.338 GB |
+
+All three measured runs produced the same eight token IDs and ended on EOS. The benchmark records raw per-token timings under ignored `results/`.
+
+This is a local smoke baseline. Three runs are not enough for a performance distribution, battery power can affect frequency and thermal behavior, and the measurement includes the high-level Python and `mlx-lm` path. It does not measure the future MiniServe C++ runtime.
+
 ## Building the Python reference
 
 MiniServe uses native ARM Python 3.12 and `uv`.
