@@ -1,22 +1,19 @@
-// MiniServe — Issue #21: C++20 and MLX C++ Runtime Bootstrap
-//
-// Role:
-// Native process entry point. Prints build identity and exits.
-//
-// Does NOT own model loading, generation, or scheduling.
-// Success here means the binary started. It does not mean inference works.
-
-#include "miniserve/runtime/bootstrap.hpp"
+// MiniServe — Issue #21: C++20 / MLX C++ bootstrap. Not inference.
 
 #include <iostream>
 
-int main() {
-    miniserve::runtime::write_build_identity(std::cout);
+#if MINISERVE_HAS_MLX
+#include "mlx/mlx.h"
+#endif
 
-    const auto id = miniserve::runtime::current_build_identity();
-    if (id.mlx_enabled && !miniserve::runtime::mlx_link_smoke()) {
-        std::cerr << "error: MLX C++ was configured but the link smoke test failed\n";
-        return 1;
-    }
+int main() {
+    std::cout << "miniserve cpp\n";
+#if MINISERVE_HAS_MLX
+    auto z = mlx::core::array({1, 2}) + mlx::core::array({3, 4});
+    mlx::core::eval(z);
+    std::cout << "mlx: ok\n";
+#else
+    std::cout << "mlx: off\n";
+#endif
     return 0;
 }

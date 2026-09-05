@@ -28,10 +28,7 @@ cpp-test: cpp-build
 	ctest --test-dir cpp/build --output-on-failure
 
 cpp-configure-mlx:
-	cmake -S cpp -B cpp/build-mlx \
-		-DCMAKE_BUILD_TYPE=Debug \
-		-DMINISERVE_ENABLE_MLX=ON \
-		-DMLX_CPP_ROOT="$(shell uv run python -m mlx --cmake-dir)"
+	cmake -S cpp -B cpp/build-mlx -DCMAKE_BUILD_TYPE=Debug -DMINISERVE_ENABLE_MLX=ON
 
 cpp-build-mlx: cpp-configure-mlx
 	cmake --build cpp/build-mlx
