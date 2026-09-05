@@ -42,7 +42,9 @@ The Python side currently contains:
 
 The native side currently contains:
 
-- a C++20 build
+- a C++20 Apple Silicon bootstrap that reports compiler, architecture, and build type
+- optional MLX C++ linking against the same `mlx` package the Python oracle uses
+- a tiny `mlx_link_smoke` check that constructs arrays; this is not model inference
 - interfaces for model execution
 - prefill and decode boundaries
 - KV-cache interfaces
@@ -50,7 +52,7 @@ The native side currently contains:
 - benchmark contracts
 - a reserved boundary for Metal kernels
 
-The C++ inference path is still under construction. A source file existing does not mean the subsystem works.
+The C++ inference path is still under construction. Linking MLX C++ does not mean generation, caching, or scheduling works.
 
 ## The first complete runtime
 
@@ -224,22 +226,30 @@ The benchmark preserves raw per-token timings and reports TTFT, TPOT, total late
 
 ## Building the native scaffold
 
+The default native build does not link MLX. It proves C++20, CMake, and process identity:
+
 ```bash
-cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Debug
-cmake --build cpp/build
-ctest --test-dir cpp/build --output-on-failure
+make cpp-test
 ./cpp/build/miniserve_cpp
 ```
 
-To test the MLX C++ discovery boundary:
+MLX C++ is discovered at configure time. The Python `mlx` package already ships `mlx/array.h`, `libmlx`, and `MLXConfig.cmake`. From this repository:
+
+```bash
+make cpp-test-mlx
+./cpp/build-mlx/miniserve_cpp
+```
+
+`make cpp-test-mlx` asks the project interpreter for `python -m mlx --cmake-dir` and passes that directory as `MLX_CPP_ROOT`. You can also let CMake probe `../.venv/bin/python`, or point at a from-source install:
 
 ```bash
 cmake -S cpp -B cpp/build-mlx \
+  -DCMAKE_BUILD_TYPE=Debug \
   -DMINISERVE_ENABLE_MLX=ON \
   -DMLX_CPP_ROOT=/path/to/mlx/prefix
 ```
 
-Successful configuration proves that the headers and libraries were discovered. Native model inference is not complete yet.
+Do not commit a machine-local prefix. On Apple, CMake pins `arm64` unless you override `CMAKE_OSX_ARCHITECTURES`, because the Python `mlx` wheel is Apple Silicon. Successful configuration and a passing `mlx_link_smoke` prove headers and `libmlx` were found. They do not mean native model inference works.
 
 ## Repository map
 
