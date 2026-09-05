@@ -42,7 +42,7 @@ The Python side currently contains:
 
 The native side currently contains:
 
-- a C++20 build
+- a C++20 build that can optionally link MLX C++
 - interfaces for model execution
 - prefill and decode boundaries
 - KV-cache interfaces
@@ -50,7 +50,7 @@ The native side currently contains:
 - benchmark contracts
 - a reserved boundary for Metal kernels
 
-The C++ inference path is still under construction. A source file existing does not mean the subsystem works.
+The C++ inference path is still under construction. Linking MLX C++ does not mean generation works.
 
 ## The first complete runtime
 
@@ -225,21 +225,18 @@ The benchmark preserves raw per-token timings and reports TTFT, TPOT, total late
 ## Building the native scaffold
 
 ```bash
-cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Debug
-cmake --build cpp/build
-ctest --test-dir cpp/build --output-on-failure
+make cpp-test
 ./cpp/build/miniserve_cpp
 ```
 
-To test the MLX C++ discovery boundary:
+To link MLX C++ from the project `.venv` (or pass `-DMLX_CPP_ROOT=`):
 
 ```bash
-cmake -S cpp -B cpp/build-mlx \
-  -DMINISERVE_ENABLE_MLX=ON \
-  -DMLX_CPP_ROOT=/path/to/mlx/prefix
+make cpp-test-mlx
+./cpp/build-mlx/miniserve_cpp
 ```
 
-Successful configuration proves that the headers and libraries were discovered. Native model inference is not complete yet.
+That proves the headers and `libmlx` were found. It does not run a model.
 
 ## Repository map
 

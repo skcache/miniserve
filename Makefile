@@ -1,4 +1,4 @@
-.PHONY: setup hardware oracle benchmark test lint cpp-configure cpp-build cpp-test phase0
+.PHONY: setup hardware oracle benchmark test lint cpp-configure cpp-build cpp-test cpp-configure-mlx cpp-build-mlx cpp-test-mlx phase0
 
 setup:
 	uv sync
@@ -26,5 +26,14 @@ cpp-build: cpp-configure
 
 cpp-test: cpp-build
 	ctest --test-dir cpp/build --output-on-failure
+
+cpp-configure-mlx:
+	cmake -S cpp -B cpp/build-mlx -DCMAKE_BUILD_TYPE=Debug -DMINISERVE_ENABLE_MLX=ON
+
+cpp-build-mlx: cpp-configure-mlx
+	cmake --build cpp/build-mlx
+
+cpp-test-mlx: cpp-build-mlx
+	ctest --test-dir cpp/build-mlx --output-on-failure
 
 phase0: test cpp-test oracle benchmark

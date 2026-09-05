@@ -1,9 +1,16 @@
 cmake_minimum_required(VERSION 3.24)
 
+if(APPLE AND NOT CMAKE_OSX_ARCHITECTURES)
+    set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "Apple Silicon")
+endif()
+
 project(miniserve_cpp VERSION 0.1.0 LANGUAGES CXX)
 
-option(MINISERVE_ENABLE_MLX "Configure the scaffold against a local MLX C++ build" OFF)
-set(MLX_CPP_ROOT "" CACHE PATH "Prefix containing MLX C++ headers and libraries")
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+option(MINISERVE_ENABLE_MLX "Link MLX C++" OFF)
+set(MLX_CPP_ROOT "" CACHE PATH "mlx package root (has share/cmake/MLX)")
 
 add_library(miniserve_runtime
     src/benchmarks/measurement.cpp
@@ -24,20 +31,19 @@ target_compile_features(miniserve_runtime PUBLIC cxx_std_20)
 target_include_directories(miniserve_runtime PUBLIC include)
 
 if(MINISERVE_ENABLE_MLX)
-    find_path(MLX_CPP_INCLUDE_DIR
-        NAMES mlx/array.h
-        HINTS "${MLX_CPP_ROOT}"
-        PATH_SUFFIXES include
-        REQUIRED
-    )
-    find_library(MLX_CPP_LIBRARY
-        NAMES mlx
-        HINTS "${MLX_CPP_ROOT}"
-        PATH_SUFFIXES lib
-        REQUIRED
-    )
-    target_include_directories(miniserve_runtime PUBLIC "${MLX_CPP_INCLUDE_DIR}")
-    target_link_libraries(miniserve_runtime PUBLIC "${MLX_CPP_LIBRARY}")
+    set(_mlx_root "${MLX_CPP_ROOT}")
+    if(NOT _mlx_root)
+        file(GLOB _mlx_root "${CMAKE_CURRENT_SOURCE_DIR}/../.venv/lib/python*/site-packages/mlx")
+        if(_mlx_root)
+            list(GET _mlx_root 0 _mlx_root)
+        endif()
+    endif()
+    list(PREPEND CMAKE_PREFIX_PATH "${_mlx_root}")
+    find_package(MLX CONFIG REQUIRED)
+    target_link_libraries(miniserve_runtime PUBLIC mlx)
+    if(MLX_LIBRARY_DIRS)
+        set(CMAKE_BUILD_RPATH "${MLX_LIBRARY_DIRS}")
+    endif()
     target_compile_definitions(miniserve_runtime PUBLIC MINISERVE_HAS_MLX=1)
 else()
     target_compile_definitions(miniserve_runtime PUBLIC MINISERVE_HAS_MLX=0)
@@ -53,4 +59,5 @@ if(BUILD_TESTING)
         target_link_libraries(test_${test_name} PRIVATE miniserve_runtime)
         add_test(NAME ${test_name}_contract COMMAND test_${test_name})
     endforeach()
+    add_test(NAME bootstrap COMMAND miniserve_cpp)
 endif()
